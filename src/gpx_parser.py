@@ -54,7 +54,7 @@ def parse_gpx(filepath: str) -> pd.DataFrame:
                 # gpxpy returns timestamps as UTC but sometimes
                 # without tzinfo attached. We enforce it explicitly.
                 ts = point.time.replace(tzinfo=timezone.utc)
-
+                # every row must have
                 points.append(
                     {
                         "timestamp": ts,
