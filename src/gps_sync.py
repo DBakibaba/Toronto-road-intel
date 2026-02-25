@@ -47,9 +47,7 @@ def parse_clip_start_utc(filename: str) -> datetime:
 
     # --- Parse into datetime object ---
     # We tell Python this is a naive local time first
-    local_time = datetime.strptime(
-        date_str + time_str, "%Y%m%d%H%M%S"
-    )
+    local_time = datetime.strptime(date_str + time_str, "%Y%m%d%H%M%S")
 
     # --- Convert Toronto local → UTC ---
     # Toronto winter time = UTC - 5
@@ -62,9 +60,9 @@ def parse_clip_start_utc(filename: str) -> datetime:
     return utc_time
 
 
-def get_frame_timestamp(clip_filename: str,
-                         frame_number: int,
-                         fps: float = 30.0) -> datetime:
+def get_frame_timestamp(
+    clip_filename: str, frame_number: int, fps: float = 30.0
+) -> datetime:
     """
     Calculate the exact UTC timestamp of a specific frame.
 
@@ -89,8 +87,7 @@ def get_frame_timestamp(clip_filename: str,
     return frame_time
 
 
-def interpolate_gps(df: pd.DataFrame,
-                    target_time: datetime) -> dict:
+def interpolate_gps(df: pd.DataFrame, target_time: datetime) -> dict:
     """
     Find the GPS coordinate at a specific UTC timestamp
     by interpolating between the two nearest GPS points.
@@ -107,7 +104,7 @@ def interpolate_gps(df: pd.DataFrame,
 
     # --- Check target is within our GPS track range ---
     track_start = df["timestamp"].iloc[0]
-    track_end   = df["timestamp"].iloc[-1]
+    track_end = df["timestamp"].iloc[-1]
 
     if target_time < track_start or target_time > track_end:
         raise ValueError(
@@ -117,21 +114,21 @@ def interpolate_gps(df: pd.DataFrame,
 
     # --- Find the GPS point just BEFORE target time ---
     before = df[df["timestamp"] <= target_time]
-    after  = df[df["timestamp"] >  target_time]
+    after = df[df["timestamp"] > target_time]
 
     # --- If exact match exists, return it directly ---
     if before.iloc[-1]["timestamp"] == target_time:
         row = before.iloc[-1]
         return {
-            "lat":          row["lat"],
-            "lon":          row["lon"],
-            "elevation":    row["elevation"],
-            "timestamp":    target_time,
-            "interpolated": False   # exact match, no estimation
+            "lat": row["lat"],
+            "lon": row["lon"],
+            "elevation": row["elevation"],
+            "timestamp": target_time,
+            "interpolated": False,  # exact match, no estimation
         }
 
     point_before = before.iloc[-1]  # last point before target
-    point_after  = after.iloc[0]    # first point after target
+    point_after = after.iloc[0]  # first point after target
 
     # --- Calculate interpolation fraction ---
     # How far between the two points is our target time?
@@ -142,37 +139,33 @@ def interpolate_gps(df: pd.DataFrame,
     #   time_into   = 2 seconds
     #   fraction    = 2/5 = 0.4
 
-    total_gap = (point_after["timestamp"] -
-                 point_before["timestamp"]).total_seconds()
+    total_gap = (point_after["timestamp"] - point_before["timestamp"]).total_seconds()
 
-    time_into = (target_time -
-                 point_before["timestamp"]).total_seconds()
+    time_into = (target_time - point_before["timestamp"]).total_seconds()
 
     fraction = time_into / total_gap
 
     # --- Interpolate lat, lon, elevation ---
-    lat = point_before["lat"] + fraction * (
-          point_after["lat"] - point_before["lat"])
+    lat = point_before["lat"] + fraction * (point_after["lat"] - point_before["lat"])
 
-    lon = point_before["lon"] + fraction * (
-          point_after["lon"] - point_before["lon"])
+    lon = point_before["lon"] + fraction * (point_after["lon"] - point_before["lon"])
 
     ele = point_before["elevation"] + fraction * (
-          point_after["elevation"] - point_before["elevation"])
+        point_after["elevation"] - point_before["elevation"]
+    )
 
     return {
-        "lat":          lat,
-        "lon":          lon,
-        "elevation":    ele,
-        "timestamp":    target_time,
-        "interpolated": True  # estimated between two points
+        "lat": lat,
+        "lon": lon,
+        "elevation": ele,
+        "timestamp": target_time,
+        "interpolated": True,  # estimated between two points
     }
 
 
-def get_gps_for_frame(df: pd.DataFrame,
-                       clip_filename: str,
-                       frame_number: int,
-                       fps: float = 30.0) -> dict:
+def get_gps_for_frame(
+    df: pd.DataFrame, clip_filename: str, frame_number: int, fps: float = 30.0
+) -> dict:
     """
     Master function — combines everything above.
     Given a clip and frame number, returns GPS coordinates.
@@ -180,8 +173,7 @@ def get_gps_for_frame(df: pd.DataFrame,
     This is the function the detection engine will call.
     """
 
-    frame_time = get_frame_timestamp(clip_filename,
-                                      frame_number, fps)
+    frame_time = get_frame_timestamp(clip_filename, frame_number, fps)
 
     gps = interpolate_gps(df, frame_time)
 
