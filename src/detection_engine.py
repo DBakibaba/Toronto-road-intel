@@ -89,19 +89,32 @@ def download_model():
 #         )
 #         print("✅ Downloaded")
 
+
 #     model = YOLO(model_path)
 #     print("✅ Pothole detection model loaded")
 #     return model
 def load_model() -> YOLO:
     """
-    Load the gated Pothole-Finetuned-YoloV8 model.
-    Requires HuggingFace login: huggingface-cli login
+    Load the Pothole-Finetuned-YoloV8 model.
     """
-    print("Loading pothole model...")
-    # YOLO can load directly from HuggingFace repo ID
-    model = YOLO("cazzz307/Pothole-Finetuned-YoloV8")
+    model_path = "models/Yolov8-fintuned-on-potholes.pt"
+
+    if not os.path.exists(model_path):
+        print("📥 Downloading model...")
+        from huggingface_hub import login, hf_hub_download
+
+        login(token="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")
+        hf_hub_download(
+            repo_id="cazzz307/Pothole-Finetuned-YoloV8",
+            filename="Yolov8-fintuned-on-potholes.pt",
+            local_dir="models",
+        )
+        print("✅ Downloaded")
+
+    model = YOLO(model_path)
     print("✅ Pothole detection model loaded")
     return model
+
 
 def detect_damage(model: YOLO, frame) -> list:
     """
@@ -124,32 +137,95 @@ def detect_damage(model: YOLO, frame) -> list:
     return results
 
 
+# def process_frame(model: YOLO, extracted_frame) -> list:
+#     """
+#     Run detection on one ExtractedFrame.
+#     Returns list of Detection objects (empty if nothing found).
+#     """
+#     results = detect_damage(model, extracted_frame.image)
+#     detections = []
+
+#     for result in results:
+#         boxes = result.boxes
+
+#         if boxes is None or len(boxes) == 0:
+#             continue
+
+#         for box in boxes:
+#             class_id = int(box.cls[0])
+#             confidence = float(box.conf[0])
+#             bbox = box.xyxy[0].tolist()
+
+#             damage_type = DAMAGE_LABELS.get(class_id, f"Unknown class {class_id}")
+
+#             detections.append(
+#                 Detection(
+#                     damage_type=damage_type,
+#                     confidence=confidence,
+#                     bbox=bbox,
+#                     lat=extracted_frame.lat,
+#                     lon=extracted_frame.lon,
+#                     elevation=extracted_frame.elevation,
+#                     timestamp_utc=extracted_frame.timestamp_utc,
+#                     clip_filename=extracted_frame.clip_filename,
+#                     frame_number=extracted_frame.frame_number,
+#                     interpolated=extracted_frame.interpolated,
+#                 )
+#             )
+
+
+#     return detections
 def process_frame(model: YOLO, extracted_frame) -> list:
     """
     Run detection on one ExtractedFrame.
-    Returns list of Detection objects (empty if nothing found).
+    Only considers detections in the road area (center-bottom of frame).
     """
     results = detect_damage(model, extracted_frame.image)
     detections = []
 
+    height = extracted_frame.image.shape[0]
+    width = extracted_frame.image.shape[1]
+
+    # Road zone — where actual road surface in front of car appears
+    # Ignore top 40% (sky, buildings), ignore side 20% (sidewalks)
+    road_x_min = width * 0.20  # ignore left 20%
+    road_x_max = width * 0.80  # ignore right 20%
+    road_y_min = height * 0.40  # ignore top 40%
+    # Skip unrealistically large detections
+    # A real pothole is never more than 25% of frame width
+
     for result in results:
         boxes = result.boxes
-
         if boxes is None or len(boxes) == 0:
             continue
 
         for box in boxes:
-            class_id = int(box.cls[0])
-            confidence = float(box.conf[0])
-            bbox = box.xyxy[0].tolist()
+            x1, y1, x2, y2 = box.xyxy[0].tolist()
 
-            damage_type = DAMAGE_LABELS.get(class_id, f"Unknown class {class_id}")
+            # Calculate center of detection box
+            center_x = (x1 + x2) / 2
+            center_y = (y1 + y2) / 2
+
+            # Skip if detection center is outside road zone
+            if center_x < road_x_min or center_x > road_x_max:
+                continue  # too far left or right
+            if center_y < road_y_min:
+                continue  # too high up (sky/buildings)
+            box_width = x2 - x1
+            box_height = y2 - y1
+
+            if box_width > width * 0.25:
+                continue  # too wide to be a pothole
+            if box_height > height * 0.25:
+                continue  # too tall to be a pothole
+            confidence = float(box.conf[0])
+            damage_type = DAMAGE_LABELS.get(int(box.cls[0]), "Unknown")
 
             detections.append(
                 Detection(
                     damage_type=damage_type,
                     confidence=confidence,
-                    bbox=bbox,
+                    bbox=[x1, y1, x2, y2],
                     lat=extracted_frame.lat,
                     lon=extracted_frame.lon,
                     elevation=extracted_frame.elevation,
