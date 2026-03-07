@@ -5,11 +5,8 @@ Extracts frames from dashcam clips at a fixed interval
 and attaches GPS coordinates to each frame.
 
 Why sample every N seconds instead of every frame?
-    275 clips × 1800 frames = 495,000 frames total
-    At 0.1s per detection = 13 hours processing time
-
-    275 clips × 30 samples = 8,250 frames total
-    At 0.1s per detection = 14 minutes processing time
+   Example: 275 clips × 1800 frames = 495,000 frames total
+   Example: 275 clips × 30 samples = 8,250 frames total
 
 Depends on: gps_sync.py, gpx_parser.py
 """
@@ -21,10 +18,8 @@ from dataclasses import dataclass
 from src.gps_sync import get_gps_for_frame
 
 
-# ── Configuration ────────────────────────────────────────
 SAMPLE_EVERY_N_SECONDS = 2  # extract one frame every 2 seconds
-FPS = 30  # your dashcam runs at 30fps
-# ─────────────────────────────────────────────────────────
+FPS = 30  # default dashcam FPS — override if your camera differs
 
 
 @dataclass

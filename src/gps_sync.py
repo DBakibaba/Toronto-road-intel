@@ -13,8 +13,9 @@ from datetime import datetime, timezone, timedelta
 import pandas as pd
 
 
-# Toronto is UTC-5 (UTC-4 during daylight saving)
-# Your Feb 23 shift is winter → UTC-5
+# Toronto winter time is UTC-5 (EST)
+# Note: hardcoded for winter operation — daylight saving (UTC-4) not yet implemented
+
 TORONTO_UTC_OFFSET = timedelta(hours=5)
 
 

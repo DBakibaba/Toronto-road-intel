@@ -1,19 +1,13 @@
 """
 detection_engine.py
 -------------------
-Runs YOLOv8 road damage detection on extracted frames.
-Uses RDD2022 pretrained model — we did NOT train this ourselves.
+Runs YOLOv8 pothole detection on extracted frames.
+Uses a fine-tuned YOLOv8 model trained on pothole detection.
 
-The 4 damage types it detects:
-    D00 → Longitudinal crack  (lines going with traffic direction)
-    D10 → Transverse crack    (lines going across traffic)
-    D20 → Alligator crack     (web pattern, worst kind)
-    D40 → Pothole             (actual holes)
-
-Why pretrained?
-    Training from scratch needs thousands of labeled images
-    and days of GPU time. RDD2022 already did that work.
-    Our job is building the SYSTEM around the model.
+Note: Initially designed for RDD2022 multi-class road damage detection
+(cracks, potholes). Narrowed to pothole detection only after testing
+showed better precision with a dedicated pothole model in Toronto
+winter conditions.
 """
 
 from ultralytics import YOLO
@@ -22,12 +16,13 @@ import urllib.request
 import os
 
 
-# ── Configuration ─────────────────────────────────────────
-CONFIDENCE_THRESHOLD = 0.45  # ignore detections below 35%
+CONFIDENCE_THRESHOLD = 0.45
+
+# ignore detections below 35%
 # too low = too many false positives
 # too high = miss real damage
 MODEL_PATH = "models/rdd2022_yolov8.pt"
-# ──────────────────────────────────────────────────────────
+
 
 # Damage type labels from RDD2022 dataset
 DAMAGE_LABELS = {0: "Pothole"}
@@ -62,37 +57,14 @@ def download_model():
     print("📥 Downloading RDD2022 pretrained model...")
     print("   This only happens once (~6MB)")
 
-    # Use YOLOv8n (nano) — fastest, good enough for detection
     # We fine-tune it toward road damage via the RDD2022 weights
-    model = YOLO("yolov8n.pt")  # downloads base model
+    model = YOLO("yolov8n.pt")
 
     print(f"✅ Base model ready")
     print("   Note: For best results on Toronto roads, the model")
     print("   uses YOLOv8 trained on RDD2022 international dataset")
 
 
-# def load_model() -> YOLO:
-#     """
-#     Load YOLOv8 pothole detection model.
-#     Downloads once, cached in models/ folder after that.
-#     """
-#     os.makedirs("models", exist_ok=True)
-#     model_path = "models/pothole_best.pt"
-
-#     if not os.path.exists(model_path):
-#         print("📥 Downloading pothole model...")
-#         import urllib.request
-
-#         urllib.request.urlretrieve(
-#             "https://huggingface.co/peterhdd/pothole-detection-yolov8/resolve/main/best.pt",
-#             model_path,
-#         )
-#         print("✅ Downloaded")
-
-
-#     model = YOLO(model_path)
-#     print("✅ Pothole detection model loaded")
-#     return model
 def load_model() -> YOLO:
     """
     Load the Pothole-Finetuned-YoloV8 model.
@@ -103,7 +75,12 @@ def load_model() -> YOLO:
         print("📥 Downloading model...")
         from huggingface_hub import login, hf_hub_download
 
-        login(token="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")
+        token = os.getenv("HF_TOKEN")
+        if token is None:
+            raise ValueError(
+                "HF_TOKEN environment variable not set. Add it to your .env file."
+            )
+        login(token=token)
         hf_hub_download(
             repo_id="cazzz307/Pothole-Finetuned-YoloV8",
             filename="Yolov8-fintuned-on-potholes.pt",
@@ -137,44 +114,6 @@ def detect_damage(model: YOLO, frame) -> list:
     return results
 
 
-# def process_frame(model: YOLO, extracted_frame) -> list:
-#     """
-#     Run detection on one ExtractedFrame.
-#     Returns list of Detection objects (empty if nothing found).
-#     """
-#     results = detect_damage(model, extracted_frame.image)
-#     detections = []
-
-#     for result in results:
-#         boxes = result.boxes
-
-#         if boxes is None or len(boxes) == 0:
-#             continue
-
-#         for box in boxes:
-#             class_id = int(box.cls[0])
-#             confidence = float(box.conf[0])
-#             bbox = box.xyxy[0].tolist()
-
-#             damage_type = DAMAGE_LABELS.get(class_id, f"Unknown class {class_id}")
-
-#             detections.append(
-#                 Detection(
-#                     damage_type=damage_type,
-#                     confidence=confidence,
-#                     bbox=bbox,
-#                     lat=extracted_frame.lat,
-#                     lon=extracted_frame.lon,
-#                     elevation=extracted_frame.elevation,
-#                     timestamp_utc=extracted_frame.timestamp_utc,
-#                     clip_filename=extracted_frame.clip_filename,
-#                     frame_number=extracted_frame.frame_number,
-#                     interpolated=extracted_frame.interpolated,
-#                 )
-#             )
-
-
-#     return detections
 def process_frame(model: YOLO, extracted_frame) -> list:
     """
     Run detection on one ExtractedFrame.
