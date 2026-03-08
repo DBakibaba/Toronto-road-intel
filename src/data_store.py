@@ -81,23 +81,23 @@ def save_detection(detection: Detection) -> None:
     conn.commit()
     conn.close()
 
-    
-def get_all_detection()->list:
-    """ 
+
+def get_all_detections() -> list:
+    """
     Retrieve all detection from the database.
     Returns a list of dictionaries- one per detection.
     Used for dashboard export and analysis.
 
     """
 
-    conn=sqlite3.connect(DB_PATH)
-    #access by column name
-    conn.row_factory=sqlite3.Row
-    cursor=conn.cursor()
+    conn = sqlite3.connect(DB_PATH)
+    # access by column name
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
 
     cursor.execute("SELECT * FROM detections")
-    rows=cursor.fetchall()
+    rows = cursor.fetchall()
 
     conn.close()
 
-    return[dict(row) for row in rows]
+    return [dict(row) for row in rows]
