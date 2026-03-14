@@ -10,7 +10,7 @@ Toronto Road Intel is an end-to-end computer vision pipeline that processes dash
 
 ![alt text](output/annotated_frames/NO20260305-0821_f1380.jpg)
 
-_Real model output from a March 2026 Toronto driving shift. YOLOv8 detects a region of interest with confidence 0.49. Note: the current model produces false positives on crosswalk markings — a known limitation being actively investigated (see Known Limitations below)._
+_Real model output from a March 2026 Toronto driving shift. The YOLOv8 model detects a potential pothole and returns a bounding box with confidence 0.49. Note: the current model sometimes produces false positives on crosswalk markings — a known limitation currently being investigated (see Known Limitations below)._
 
 ---
 
