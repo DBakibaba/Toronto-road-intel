@@ -15,7 +15,7 @@ import cv2
 import glob
 from src.gpx_parser import parse_gpx, summarize_gpx
 from src.video_processor import extract_frames
-from src.detection_engine import load_model, process_frame
+from src.detection_engine import load_model, process_frame, interactive_crop
 from src.data_store import create_table, save_detection
 
 
@@ -117,7 +117,7 @@ def run_pipeline(date: str, num_clips: int = 10):
     if num_clips == -1:  # -1 means all
         clips_to_process = all_clips
     else:
-        clips_to_process = all_clips[:num_clips]
+        clips_to_process = all_clips[5 : 5 + num_clips]
 
     print(f"   Processing: {len(clips_to_process)} clips")
     print(f"   From: {os.path.basename(clips_to_process[0])}")
@@ -146,11 +146,13 @@ def run_pipeline(date: str, num_clips: int = 10):
 
         total_frames_scanned += len(frames)
 
-        for extracted_frame in frames:
-            detections = process_frame(model, extracted_frame)
-            if not detections:
-                continue
+        crop_values = interactive_crop(frames[0].image)
 
+        for extracted_frame in frames:
+            detections = process_frame(model, extracted_frame, crop_values)
+
+            if not detections:
+                continue  # ← this works now because we're inside a loo
             # Draw boxes on frame
             img = extracted_frame.image.copy()
             for d in detections:

@@ -14,6 +14,7 @@ from ultralytics import YOLO
 from dataclasses import dataclass
 import urllib.request
 import os
+import cv2
 
 
 CONFIDENCE_THRESHOLD = 0.45
@@ -114,24 +115,72 @@ def detect_damage(model: YOLO, frame) -> list:
     return results
 
 
-def process_frame(model: YOLO, extracted_frame) -> list:
+def interactive_crop(frame):
+    def nothing(x):
+        pass
+
+    cv2.namedWindow("Adjust Crop")
+    cv2.createTrackbar("y1", "Adjust Crop", 40, 100, nothing)
+    cv2.createTrackbar("y2", "Adjust Crop", 85, 100, nothing)
+    cv2.createTrackbar("x1", "Adjust Crop", 20, 100, nothing)
+    cv2.createTrackbar("x2", "Adjust Crop", 80, 100, nothing)
+
+    while True:
+        h, w = frame.shape[:2]
+
+        y1 = cv2.getTrackbarPos("y1", "Adjust Crop") / 100
+        y2 = cv2.getTrackbarPos("y2", "Adjust Crop") / 100
+        x1 = cv2.getTrackbarPos("x1", "Adjust Crop") / 100
+        x2 = cv2.getTrackbarPos("x2", "Adjust Crop") / 100
+
+        preview = frame.copy()
+
+        cv2.rectangle(
+            preview,
+            (int(w * x1), int(h * y1)),
+            (int(w * x2), int(h * y2)),
+            (0, 255, 0),
+            2,
+        )
+
+        cv2.imshow("Adjust Crop", preview)
+
+        key = cv2.waitKey(1) & 0xFF
+
+        if key == 27:  # ESC
+            print("❌ Cancelled crop")
+            break
+
+        if key == 13:  # ENTER
+            print("✅ Crop confirmed")
+            break
+
+    cv2.destroyAllWindows()
+    return y1, y2, x1, x2
+
+
+def process_frame(model: YOLO, extracted_frame, crop_values) -> list:
     """
     Run detection on one ExtractedFrame.
     Only considers detections in the road area (center-bottom of frame).
     """
-    results = detect_damage(model, extracted_frame.image)
+
+    crop_y1, crop_y2, crop_x1, crop_x2 = crop_values
+    height, width = extracted_frame.image.shape[:2]
+
+    y1 = int(height * crop_y1)
+    y2 = int(height * crop_y2)
+    x1 = int(width * crop_x1)
+    x2 = int(width * crop_x2)
+
+    cropped = extracted_frame.image[y1:y2, x1:x2]
+
+    results = detect_damage(model, cropped)
+
     detections = []
 
     height = extracted_frame.image.shape[0]
     width = extracted_frame.image.shape[1]
-
-    # Road zone — where actual road surface in front of car appears
-    # Ignore top 40% (sky, buildings), ignore side 20% (sidewalks)
-    road_x_min = width * 0.20  # ignore left 20%
-    road_x_max = width * 0.80  # ignore right 20%
-    road_y_min = height * 0.40  # ignore top 40%
-    # Skip unrealistically large detections
-    # A real pothole is never more than 25% of frame width
 
     for result in results:
         boxes = result.boxes
@@ -139,24 +188,24 @@ def process_frame(model: YOLO, extracted_frame) -> list:
             continue
 
         for box in boxes:
-            x1, y1, x2, y2 = box.xyxy[0].tolist()
+            x1_box, y1_box, x2_box, y2_box = box.xyxy[0].tolist()
 
-            # Calculate center of detection box
-            center_x = (x1 + x2) / 2
-            center_y = (y1 + y2) / 2
+            x1_box += x1
+            x2_box += x1
+            y1_box += y1
+            y2_box += y1
 
-            # Skip if detection center is outside road zone
-            if center_x < road_x_min or center_x > road_x_max:
-                continue  # too far left or right
-            if center_y < road_y_min:
-                continue  # too high up (sky/buildings)
-            box_width = x2 - x1
-            box_height = y2 - y1
+            center_x = (x1_box + x2_box) / 2
+            center_y = (y1_box + y2_box) / 2
+
+            box_width = x2_box - x1_box
+            box_height = y2_box - y1_box
 
             if box_width > width * 0.25:
-                continue  # too wide to be a pothole
+                continue
             if box_height > height * 0.25:
-                continue  # too tall to be a pothole
+                continue
+
             confidence = float(box.conf[0])
             damage_type = DAMAGE_LABELS.get(int(box.cls[0]), "Unknown")
 
@@ -164,7 +213,7 @@ def process_frame(model: YOLO, extracted_frame) -> list:
                 Detection(
                     damage_type=damage_type,
                     confidence=confidence,
-                    bbox=[x1, y1, x2, y2],
+                    bbox=[x1_box, y1_box, x2_box, y2_box],  # ✅ FIXED
                     lat=extracted_frame.lat,
                     lon=extracted_frame.lon,
                     elevation=extracted_frame.elevation,
@@ -179,15 +228,18 @@ def process_frame(model: YOLO, extracted_frame) -> list:
 
 
 def run_detection_on_clip(model: YOLO, extracted_frames: list) -> list:
-    """
-    Run detection across all frames from one clip.
-    Returns all detections found.
-    """
     all_detections = []
     frames_with_damage = 0
 
+    #  STEP 1 — get crop values ONCE
+    first_frame = extracted_frames[0]
+    crop_values = interactive_crop(first_frame.image)
+
+    print(f"✅ Crop selected: {crop_values}")
+
+    #  STEP 2 — loop frames
     for frame in extracted_frames:
-        detections = process_frame(model, frame)
+        detections = process_frame(model, frame, crop_values)
 
         if detections:
             frames_with_damage += 1
