@@ -133,6 +133,8 @@ def run_pipeline(date: str, num_clips: int = 10):
 
     total_detections = 0
     total_frames_scanned = 0
+    first_frames = extract_frames(clips_to_process[0], df)
+    crop_frames = interactive_crop(first_frames[0].image)
 
     for i, clip_path in enumerate(clips_to_process):
         clip_name = os.path.basename(clip_path)
@@ -146,10 +148,8 @@ def run_pipeline(date: str, num_clips: int = 10):
 
         total_frames_scanned += len(frames)
 
-        crop_values = interactive_crop(frames[0].image)
-
         for extracted_frame in frames:
-            detections = process_frame(model, extracted_frame, crop_values)
+            detections = process_frame(model, extracted_frame, crop_frames)
 
             if not detections:
                 continue  # ← this works now because we're inside a loo

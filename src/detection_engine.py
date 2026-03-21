@@ -205,6 +205,14 @@ def process_frame(model: YOLO, extracted_frame, crop_values) -> list:
                 continue
             if box_height > height * 0.25:
                 continue
+            # ── Brightness filter ─────────────────────────
+            roi = extracted_frame.image[
+                int(y1_box) : int(y2_box), int(x1_box) : int(x2_box)
+            ]
+            mean_bgr = cv2.mean(roi)
+            brightness = (mean_bgr[0] + mean_bgr[1] + mean_bgr[2]) / 3
+            if brightness > 180:
+                continue  # too bright — likely crosswalk or road marking
 
             confidence = float(box.conf[0])
             damage_type = DAMAGE_LABELS.get(int(box.cls[0]), "Unknown")
