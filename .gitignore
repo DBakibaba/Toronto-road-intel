@@ -210,3 +210,5 @@ data/gps_tracks/
 *.mp4
 *.avi
 *.gpx
+output/annotated_frames/
+data/detections/

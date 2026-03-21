@@ -13,6 +13,7 @@ import argparse
 import os
 import cv2
 import glob
+import time
 from src.gpx_parser import parse_gpx, summarize_gpx
 from src.video_processor import extract_frames
 from src.detection_engine import load_model, process_frame, interactive_crop
@@ -24,6 +25,8 @@ GPX_FOLDER = "data/gps_tracks"
 VIDEO_FOLDER = "data/raw_video"
 OUTPUT_FOLDER = "output/annotated_frames"
 # ──────────────────────────────────────────────────────────
+BATCH_SIZE = 10
+COOLDOWN_SECONDS = 60
 
 
 def find_gpx_for_date(date: str) -> str:
@@ -131,55 +134,71 @@ def run_pipeline(date: str, num_clips: int = 10):
     for f in glob.glob(f"{OUTPUT_FOLDER}/*.jpg"):
         os.remove(f)
 
+    last_lat = None
+    last_lon = None
     total_detections = 0
     total_frames_scanned = 0
     first_frames = extract_frames(clips_to_process[0], df)
     crop_frames = interactive_crop(first_frames[0].image)
 
-    for i, clip_path in enumerate(clips_to_process):
-        clip_name = os.path.basename(clip_path)
-        print(f"\n  [{i+1}/{len(clips_to_process)}] {clip_name}")
+    for batch_start in range(0, len(clips_to_process), BATCH_SIZE):
+        batch = clips_to_process[batch_start : batch_start + BATCH_SIZE]
 
-        try:
-            frames = extract_frames(clip_path, df)
-        except Exception as e:
-            print(f"  ⚠️  Skipped: {e}")
-            continue
+        for i, clip_path in enumerate(batch):
+            clip_name = os.path.basename(clip_path)
+            print(f"\n  [{i+1}/{len(clips_to_process)}] {clip_name}")
 
-        total_frames_scanned += len(frames)
+            try:
+                frames = extract_frames(clip_path, df)
+            except Exception as e:
+                print(f"  ⚠️  Skipped: {e}")
+                continue
 
-        for extracted_frame in frames:
-            detections = process_frame(model, extracted_frame, crop_frames)
+            total_frames_scanned += len(frames)
 
-            if not detections:
-                continue  # ← this works now because we're inside a loo
-            # Draw boxes on frame
-            img = extracted_frame.image.copy()
-            for d in detections:
-                x1, y1, x2, y2 = [int(v) for v in d.bbox]
-                cv2.rectangle(img, (x1, y1), (x2, y2), (0, 0, 255), 3)
-                cv2.putText(
-                    img,
-                    f"Pothole {d.confidence:.2f}",
-                    (x1, y1 - 10),
-                    cv2.FONT_HERSHEY_SIMPLEX,
-                    0.8,
-                    (0, 0, 255),
-                    2,
-                )
+            for extracted_frame in frames:
+                detections = process_frame(model, extracted_frame, crop_frames)
 
-            # Save annotated frame
-            out_name = f"{clip_name[:15]}_f{extracted_frame.frame_number:04d}.jpg"
-            cv2.imwrite(os.path.join(OUTPUT_FOLDER, out_name), img)
+                if not detections:
+                    continue  # ← this works now because we're inside a loo
+                # Draw boxes on frame
+                img = extracted_frame.image.copy()
+                for d in detections:
+                    x1, y1, x2, y2 = [int(v) for v in d.bbox]
+                    cv2.rectangle(img, (x1, y1), (x2, y2), (0, 0, 255), 3)
+                    cv2.putText(
+                        img,
+                        f"Pothole {d.confidence:.2f}",
+                        (x1, y1 - 10),
+                        cv2.FONT_HERSHEY_SIMPLEX,
+                        0.8,
+                        (0, 0, 255),
+                        2,
+                    )
 
-            total_detections += len(detections)
-            for d in detections:
-                save_detection(d)
-                print(
-                    f"  🕳️  POTHOLE | frame {extracted_frame.frame_number} "
-                    f"| conf={d.confidence:.2f} "
-                    f"| lat={d.lat:.5f} | lon={d.lon:.5f}"
-                )
+                # Save annotated frame
+                out_name = f"{clip_name[:15]}_f{extracted_frame.frame_number:04d}.jpg"
+                cv2.imwrite(os.path.join(OUTPUT_FOLDER, out_name), img)
+
+                total_detections += len(detections)
+
+                for d in detections:
+
+                    if last_lat is not None:
+                        if (
+                            abs(d.lat - last_lat) < 0.0002
+                            and abs(d.lon - last_lon) < 0.0002
+                        ):
+                            continue
+
+                    save_detection(d)
+
+                    last_lat = d.lat
+                    last_lon = d.lon
+
+        if batch_start + BATCH_SIZE < len(clips_to_process):
+            print(f"\n⏸️  Cooling down for {COOLDOWN_SECONDS}s...")
+            time.sleep(COOLDOWN_SECONDS)
 
     # ── Step 5: Summary ───────────────────────────────────
     print("\n" + "=" * 50)
