@@ -8,7 +8,7 @@ Toronto Road Intel is an end-to-end computer vision pipeline that processes dash
 
 ## Example Detection Output
 
-![alt text](output/annotated_frames/NO20260318-1219_f1620.jpg)
+![Detection Example](docs/images/NO20260318-1219_f1620.jpg)
 
 _Real model output from a March 2026 Toronto driving shift near Eastern Ave. The YOLOv8 model detects road surface damage with confidence 0.45. Bounding box is drawn on the full frame using coordinate shifting from the cropped detection zone._
 
