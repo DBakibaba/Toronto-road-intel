@@ -8,9 +8,9 @@ Toronto Road Intel is an end-to-end computer vision pipeline that processes dash
 
 ## Example Detection Output
 
-![alt text](output/annotated_frames/NO20260305-0821_f1380.jpg)
+![alt text](output/annotated_frames/NO20260318-1219_f1620.jpg)
 
-_Real model output from a March 2026 Toronto driving shift. The YOLOv8 model detects a potential pothole and returns a bounding box with confidence 0.49. Note: the current model sometimes produces false positives on crosswalk markings — a known limitation currently being investigated (see Known Limitations below)._
+_Real model output from a March 2026 Toronto driving shift near Eastern Ave. The YOLOv8 model detects road surface damage with confidence 0.45. Bounding box is drawn on the full frame using coordinate shifting from the cropped detection zone._
 
 ---
 
@@ -26,6 +26,8 @@ gps_sync.py          — attaches GPS coordinates to each frame
 detection_engine.py  — runs YOLOv8 inference + road zone filtering
         ↓
 data_store.py        — saves detections to SQLite database
+        ↓
+map_visualizer.py    — interactive Folium map (in progress)
         ↓
 Dashboard            — Looker Studio visualization (in progress)
 ```
@@ -139,15 +141,27 @@ Each detected event is stored with the following fields:
 
 ## Known Limitations
 
-### 1. Winter conditions
+### 1. Visual similarity — oil stains and road markings
 
-The YOLOv8 model used (`Pothole-Finetuned-YoloV8`) was not specifically trained on Canadian winter road conditions. Snow coverage, salt staining, wet asphalt, and low-contrast lighting reduce detection accuracy. This is the primary challenge being investigated.
+The current model achieves approximately 40–50% precision on Toronto roads. The primary false positive sources are dark oil stains, tire marks, and road patches that are visually similar to potholes in 2D. The model cannot distinguish surface texture depth from a dashcam image alone.
 
-### 2. Crosswalk false positives
+**Next step:** Collect labeled dataset using Roboflow and fine-tune the model on Toronto-specific road conditions.
 
-The model currently confuses crosswalk paint markings with road damage in some frames. A crosswalk exclusion filter is being considered as a next step.
+### 2. Streetcar tracks
 
-### 3. Hardcoded winter timezone
+Toronto's streetcar network creates false positives — track grooves are dark, narrow, and run along the road surface in a pattern the model confuses with road damage. An aspect ratio filter is planned to eliminate wide flat detections.
+
+### 3. Crosswalk false positives
+
+The brightness filter (rejecting detections with mean pixel value > 180) reduces crosswalk false positives but does not eliminate them entirely.
+
+### 4. Fixed ROI crop during turns
+
+The interactive crop zone is tuned for straight driving. During turns the lane shifts left or right in the frame, potentially causing the detection zone to miss road damage or include sidewalk area.
+
+**Next step:** Dynamic crop zone that follows lane position — requires a separate lane detection model.
+
+### 5. Hardcoded winter timezone
 
 GPS sync currently assumes Toronto winter time (UTC-5 / EST). Daylight saving time (UTC-4) handling is not yet implemented.
 
@@ -155,11 +169,16 @@ GPS sync currently assumes Toronto winter time (UTC-5 / EST). Daylight saving ti
 
 ## Roadmap
 
-- [ ] Crosswalk exclusion filter to reduce false positives
+- [x] Interactive ROI crop window for tuning detection zone
+- [x] Brightness filter to reject white road markings
+- [x] Duplicate GPS detection filter to prevent repeated saves at red lights
+- [x] Batch processing with cooldown for long shift runs
+- [ ] Aspect ratio filter to reject streetcar track detections
+- [ ] Folium interactive map showing detection hotspots across Toronto
 - [ ] Looker Studio dashboard for detection visualization
-- [ ] Interactive map showing detection hotspots across Toronto
+- [ ] Fine-tune YOLOv8 on labeled Toronto road data using Roboflow
+- [ ] Dynamic crop zone that follows lane position during turns
 - [ ] Daylight saving time support in GPS sync
-- [ ] Explore brand/signage detection from driver perspective as a future extension
 
 ---
 
@@ -167,10 +186,11 @@ GPS sync currently assumes Toronto winter time (UTC-5 / EST). Daylight saving ti
 
 - **Python 3.11**
 - **YOLOv8** (Ultralytics) — object detection
-- **OpenCV** — video processing and frame annotation
+- **OpenCV** — video processing, frame annotation, interactive crop UI
 - **gpxpy** — GPX file parsing
 - **pandas** — GPS data manipulation
 - **SQLite** — structured detection storage
+- **Folium** — interactive map visualization (in progress)
 - **Looker Studio** — dashboard (in progress)
 
 ---
