@@ -161,9 +161,9 @@ The interactive crop zone is tuned for straight driving. During turns the lane s
 
 **Next step:** Dynamic crop zone that follows lane position — requires a separate lane detection model.
 
-### 5. Hardcoded winter timezone
+### 5. Timezone handling
 
-GPS sync currently assumes Toronto winter time (UTC-5 / EST). Daylight saving time (UTC-4) handling is not yet implemented.
+GPS sync automatically handles both Toronto winter time (UTC-5 / EST) and daylight saving time (UTC-4 / EDT) using `pytz` — no manual adjustment needed when switching seasons.
 
 ---
 
@@ -178,7 +178,7 @@ GPS sync currently assumes Toronto winter time (UTC-5 / EST). Daylight saving ti
 - [ ] Looker Studio dashboard for detection visualization
 - [ ] Fine-tune YOLOv8 on labeled Toronto road data using Roboflow
 - [ ] Dynamic crop zone that follows lane position during turns
-- [ ] Daylight saving time support in GPS sync
+- [x] Daylight saving time support in GPS sync
 
 ---
 

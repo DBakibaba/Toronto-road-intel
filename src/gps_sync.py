@@ -9,14 +9,13 @@ Depends on: gpx_parser.py (must be run first)
 """
 
 import re
+import pytz
 from datetime import datetime, timezone, timedelta
 import pandas as pd
 
 
 # Toronto winter time is UTC-5 (EST)
 # Note: hardcoded for winter operation — daylight saving (UTC-4) not yet implemented
-
-TORONTO_UTC_OFFSET = timedelta(hours=5)
 
 
 def parse_clip_start_utc(filename: str) -> datetime:
@@ -50,13 +49,9 @@ def parse_clip_start_utc(filename: str) -> datetime:
     # We tell Python this is a naive local time first
     local_time = datetime.strptime(date_str + time_str, "%Y%m%d%H%M%S")
 
-    # --- Convert Toronto local → UTC ---
-    # Toronto winter time = UTC - 5
-    # So UTC = local + 5 hours
-    utc_time = local_time + TORONTO_UTC_OFFSET
-
-    # --- Attach UTC timezone info ---
-    utc_time = utc_time.replace(tzinfo=timezone.utc)
+    toronto_tz = pytz.timezone("America/Toronto")
+    local_time = toronto_tz.localize(local_time)  # attach Toronto timezone
+    utc_time = local_time.astimezone(timezone.utc)  # convert to UTC
 
     return utc_time
 
