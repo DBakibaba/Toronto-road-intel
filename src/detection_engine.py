@@ -205,6 +205,13 @@ def process_frame(model: YOLO, extracted_frame, crop_values) -> list:
                 continue
             if box_height > height * 0.25:
                 continue
+
+            # ──Street Car track
+            ratio = box_width / box_height
+            if ratio > 3:  # too wide
+                continue
+            if ratio < 0.3:  # too tall
+                continue
             # ── Brightness filter ─────────────────────────
             roi = extracted_frame.image[
                 int(y1_box) : int(y2_box), int(x1_box) : int(x2_box)

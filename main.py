@@ -138,7 +138,19 @@ def run_pipeline(date: str, num_clips: int = 10):
     last_lon = None
     total_detections = 0
     total_frames_scanned = 0
-    first_frames = extract_frames(clips_to_process[0], df)
+    first_frames = []
+    for _clip in clips_to_process:
+        first_frames = extract_frames(_clip, df)
+        if first_frames:
+            print(f"   Crop calibration using: {os.path.basename(_clip)}")
+            break
+    if not first_frames:
+        raise RuntimeError(
+            "No frames could be extracted from any clip — "
+            "all clip timestamps fall outside the GPS track range.\n"
+            f"GPS track starts: {df['timestamp'].iloc[0]}\n"
+            f"First clip: {os.path.basename(clips_to_process[0])}"
+        )
     crop_frames = interactive_crop(first_frames[0].image)
 
     for batch_start in range(0, len(clips_to_process), BATCH_SIZE):
