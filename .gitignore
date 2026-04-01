@@ -212,3 +212,14 @@ data/gps_tracks/
 *.gpx
 output/annotated_frames/
 data/detections/
+
+venv/
+__pycache__/
+*.pyc
+
+# models
+*.pt
+*.pth
+
+# outputs
+output/
