@@ -17,7 +17,7 @@ import os
 import cv2
 
 
-CONFIDENCE_THRESHOLD = 0.45
+CONFIDENCE_THRESHOLD = 0.55
 
 # ignore detections below 35%
 # too low = too many false positives
