@@ -16,7 +16,7 @@ import urllib.request
 import os
 import cv2
 
-
+MIN_TEXTURE_SCORE = 80
 CONFIDENCE_THRESHOLD = 0.55
 
 # ignore detections below 35%
@@ -220,6 +220,12 @@ def process_frame(model: YOLO, extracted_frame, crop_values) -> list:
             brightness = (mean_bgr[0] + mean_bgr[1] + mean_bgr[2]) / 3
             if brightness > 180:
                 continue  # too bright — likely crosswalk or road marking
+            
+            # ── Texture filter ────────────────────────────────
+            gray_roi = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
+            texture_score = cv2.Laplacian(gray_roi, cv2.CV_64F).var()
+            if texture_score < MIN_TEXTURE_SCORE:
+                continue  # too smooth — oil stain, snow, not a pothole
 
             confidence = float(box.conf[0])
             damage_type = DAMAGE_LABELS.get(int(box.cls[0]), "Unknown")
@@ -238,6 +244,8 @@ def process_frame(model: YOLO, extracted_frame, crop_values) -> list:
                     interpolated=extracted_frame.interpolated,
                 )
             )
+            
+           
 
     return detections
 
