@@ -18,7 +18,7 @@ import cv2
 
 MIN_TEXTURE_SCORE = 80
 CONFIDENCE_THRESHOLD = 0.55
-
+COLLECT_MODE=False
 # ignore detections below 35%
 # too low = too many false positives
 # too high = miss real damage
@@ -195,8 +195,6 @@ def process_frame(model: YOLO, extracted_frame, crop_values) -> list:
             y1_box += y1
             y2_box += y1
 
-            center_x = (x1_box + x2_box) / 2
-            center_y = (y1_box + y2_box) / 2
 
             box_width = x2_box - x1_box
             box_height = y2_box - y1_box
@@ -218,14 +216,17 @@ def process_frame(model: YOLO, extracted_frame, crop_values) -> list:
             ]
             mean_bgr = cv2.mean(roi)
             brightness = (mean_bgr[0] + mean_bgr[1] + mean_bgr[2]) / 3
-            if brightness > 180:
-                continue  # too bright — likely crosswalk or road marking
-            
-            # ── Texture filter ────────────────────────────────
-            gray_roi = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
-            texture_score = cv2.Laplacian(gray_roi, cv2.CV_64F).var()
-            if texture_score < MIN_TEXTURE_SCORE:
-                continue  # too smooth — oil stain, snow, not a pothole
+
+            if not COLLECT_MODE:
+
+                if brightness > 180:
+                    continue  # too bright — likely crosswalk or road marking
+                
+                # ── Texture filter ────────────────────────────────
+                gray_roi = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
+                texture_score = cv2.Laplacian(gray_roi, cv2.CV_64F).var()
+                if texture_score < MIN_TEXTURE_SCORE:
+                    continue  # too smooth — oil stain, snow, not a pothole
 
             confidence = float(box.conf[0])
             damage_type = DAMAGE_LABELS.get(int(box.cls[0]), "Unknown")
