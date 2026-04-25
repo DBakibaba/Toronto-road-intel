@@ -221,5 +221,10 @@ __pycache__/
 *.pt
 *.pth
 
-# outputs
 output/
+data/raw_video/
+data/detections/
+*.db
+*.MP4
+venv/
+__pycache__/

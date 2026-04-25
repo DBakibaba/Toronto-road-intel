@@ -25,8 +25,8 @@ GPX_FOLDER = "data/gps_tracks"
 VIDEO_FOLDER = "data/raw_video"
 OUTPUT_FOLDER = "output/annotated_frames"
 # ──────────────────────────────────────────────────────────
-BATCH_SIZE = 10
-COOLDOWN_SECONDS = 60
+BATCH_SIZE = 8
+COOLDOWN_SECONDS = 90
 
 
 def find_gpx_for_date(date: str) -> str:
@@ -172,7 +172,7 @@ def run_pipeline(date: str, num_clips: int = 10):
                 detections = process_frame(model, extracted_frame, crop_frames)
 
                 if not detections:
-                    continue  # ← this works now because we're inside a loo
+                    continue  # ← this works now because we're inside a loop
                 # Draw boxes on frame
                 img = extracted_frame.image.copy()
                 for d in detections:
