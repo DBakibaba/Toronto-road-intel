@@ -56,12 +56,63 @@ Toronto-road-intel/
 │   ├── detection_engine.py # YOLOv8 inference with road zone filtering
 │   ├── data_store.py       # SQLite create / save / retrieve operations
 │   └── map_visualizer.py   # Interactive map rendering (in progress)
+├── training/
+│   └── train_toronto_pothole.ipynb  # Google Colab training notebook
 ├── tests/
 │   ├── test_gps_sync.py
 │   └── test_gpx_parser.py
 ├── main.py                 # Pipeline entry point
 └── requirements.txt
 ```
+
+---
+
+## Model Training
+
+### Dataset
+
+The model was fine-tuned on a custom Toronto road damage dataset built from dashcam footage collected during real Uber driving shifts across Toronto.
+
+| Split     | Images     |
+| --------- | ---------- |
+| Train     | 41,160     |
+| Valid     | 2,857      |
+| Test      | 1,416      |
+| **Total** | **45,433** |
+
+Dataset exported from Roboflow with the following augmentations: horizontal flip, ±10° rotation, ±25% brightness, ±15% exposure, blur up to 1.3px.
+
+### Training Setup
+
+- **Base model:** `Yolov8-fintuned-on-potholes.pt` (YOLOv8m/l, 49.6MB)
+- **Training environment:** Google Colab (Tesla T4 GPU)
+- **Framework:** Ultralytics YOLOv8
+- **Epochs:** 30
+- **Image size:** 640×640
+- **Batch size:** 16
+
+### Key Engineering Decision — Learning Rate
+
+During the first training run, all losses collapsed to zero at epoch 5. This was caused by **catastrophic forgetting** — the default learning rate (`lr0=0.01`) was too aggressive for a model that was already pre-trained on pothole data. The large weight updates overwrote existing knowledge faster than the model could adapt to the new dataset.
+
+**Fix:** Reduced learning rate by 10x (`lr0=0.001`) and added a 3-epoch warmup period. This forces the model to make smaller, more careful adjustments, preserving the base model's knowledge while gradually adapting to Toronto-specific road conditions.
+
+```python
+model.train(
+    lr0=0.001,        # 10x smaller than default — prevents catastrophic forgetting
+    lrf=0.01,         # final learning rate factor
+    warmup_epochs=3,  # gentle ramp-up for the first 3 epochs
+)
+```
+
+### Training Results
+
+| Epoch | box_loss | cls_loss | dfl_loss |
+| ----- | -------- | -------- | -------- |
+| 1     | 0.7925   | 8.256    | 0.4072   |
+| 2     | 0.8461   | 1.466    | 0.4257   |
+| 3     | 0.820    | 1.375    | 0.4385   |
+| 4     | 0.4549   | 0.7178   | 0.2512   |
 
 ---
 
@@ -147,21 +198,27 @@ The current model achieves approximately 40–50% precision on Toronto roads. Th
 
 **Next step:** Collect labeled dataset using Roboflow and fine-tune the model on Toronto-specific road conditions.
 
-### 2. Streetcar tracks
+### 2. Class imbalance in training data
+
+The validation set contains 2,857 images but only 59 annotated pothole instances — meaning 97.9% of images are background. This causes the model to learn that predicting nothing is often "safe," which suppresses mAP50 in early epochs.
+
+**Next step:** Curate a focused dataset using confirmed detection frames from `output/raw_frames/` where potholes are guaranteed to be present. Better data quality over larger quantity.
+
+### 3. Streetcar tracks
 
 Toronto's streetcar network creates false positives — track grooves are dark, narrow, and run along the road surface in a pattern the model confuses with road damage. An aspect ratio filter is planned to eliminate wide flat detections.
 
-### 3. Crosswalk false positives
+### 4. Crosswalk false positives
 
 The brightness filter (rejecting detections with mean pixel value > 180) reduces crosswalk false positives but does not eliminate them entirely.
 
-### 4. Fixed ROI crop during turns
+### 5. Fixed ROI crop during turns
 
 The interactive crop zone is tuned for straight driving. During turns the lane shifts left or right in the frame, potentially causing the detection zone to miss road damage or include sidewalk area.
 
 **Next step:** Dynamic crop zone that follows lane position — requires a separate lane detection model.
 
-### 5. Timezone handling
+### 6. Timezone handling
 
 GPS sync automatically handles both Toronto winter time (UTC-5 / EST) and daylight saving time (UTC-4 / EDT) using `pytz` — no manual adjustment needed when switching seasons.
 
@@ -171,14 +228,16 @@ GPS sync automatically handles both Toronto winter time (UTC-5 / EST) and daylig
 
 - [x] Interactive ROI crop window for tuning detection zone
 - [x] Brightness filter to reject white road markings
+- [x] Aspect ratio filter to reject streetcar track detections
 - [x] Duplicate GPS detection filter to prevent repeated saves at red lights
 - [x] Batch processing with cooldown for long shift runs
-- [ ] Aspect ratio filter to reject streetcar track detections
+- [x] Daylight saving time support in GPS sync
+- [x] Custom Toronto dataset — 45,433 images labeled via Roboflow
+- [x] Fine-tune YOLOv8 on labeled Toronto road data (in progress)
 - [ ] Folium interactive map showing detection hotspots across Toronto
 - [ ] Looker Studio dashboard for detection visualization
-- [ ] Fine-tune YOLOv8 on labeled Toronto road data using Roboflow
+- [ ] Curated high-quality dataset focused on confirmed pothole frames
 - [ ] Dynamic crop zone that follows lane position during turns
-- [x] Daylight saving time support in GPS sync
 
 ---
 
@@ -191,6 +250,8 @@ GPS sync automatically handles both Toronto winter time (UTC-5 / EST) and daylig
 - **pandas** — GPS data manipulation
 - **SQLite** — structured detection storage
 - **Folium** — interactive map visualization (in progress)
+- **Roboflow** — dataset labeling and augmentation
+- **Google Colab** — GPU training environment
 - **Looker Studio** — dashboard (in progress)
 
 ---
@@ -199,6 +260,7 @@ GPS sync automatically handles both Toronto winter time (UTC-5 / EST) and daylig
 
 - **Dashcam:** 70mai A810 (4K, 30fps)
 - **GPS:** Open GPX Tracker (iOS) — records `.gpx` tracks synchronized with driving shifts
+- **Training GPU:** Tesla T4 (Google Colab)
 
 ---
 
@@ -211,7 +273,7 @@ Raw dashcam footage and GPX files are **not committed to this repository** — t
 ## Author
 
 **Dogukan Bakibaba**
-Computer Programming Student — Seneca Polytechnic (graduating April 2026)
+Computer Programming — Seneca Polytechnic (graduated April 2026)
 Bachelor of Engineering, Mechanical Engineering — Akdeniz University
 
 [LinkedIn](https://www.linkedin.com/in/dogukan-bakibaba-4631a03b0) · [GitHub](https://github.com/DBakibaba)
