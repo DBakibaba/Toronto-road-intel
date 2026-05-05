@@ -18,7 +18,7 @@ import cv2
 
 MIN_TEXTURE_SCORE = 80
 CONFIDENCE_THRESHOLD = 0.55
-COLLECT_MODE=False
+COLLECT_MODE = False
 # ignore detections below 35%
 # too low = too many false positives
 # too high = miss real damage
@@ -66,31 +66,19 @@ def download_model():
     print("   uses YOLOv8 trained on RDD2022 international dataset")
 
 
-def load_model() -> YOLO:
-    """
-    Load the Pothole-Finetuned-YoloV8 model.
-    """
-    model_path = "models/Yolov8-fintuned-on-potholes.pt"
 
+def load_model(model_path: str = "models/Yolov8-fintuned-on-potholes.pt") -> YOLO:
+    """
+    Load YOLOv8 pothole detection model.
+    Default: original fine-tuned model
+    Override: pass any .pt path to compare models
+    """
     if not os.path.exists(model_path):
-        print("📥 Downloading model...")
-        from huggingface_hub import login, hf_hub_download
-
-        token = os.getenv("HF_TOKEN")
-        if token is None:
-            raise ValueError(
-                "HF_TOKEN environment variable not set. Add it to your .env file."
-            )
-        login(token=token)
-        hf_hub_download(
-            repo_id="cazzz307/Pothole-Finetuned-YoloV8",
-            filename="Yolov8-fintuned-on-potholes.pt",
-            local_dir="models",
-        )
-        print("✅ Downloaded")
+        print(f"❌ Model not found: {model_path}")
+        raise FileNotFoundError(model_path)
 
     model = YOLO(model_path)
-    print("✅ Pothole detection model loaded")
+    print(f"✅ Model loaded: {model_path}")
     return model
 
 
@@ -195,7 +183,6 @@ def process_frame(model: YOLO, extracted_frame, crop_values) -> list:
             y1_box += y1
             y2_box += y1
 
-
             box_width = x2_box - x1_box
             box_height = y2_box - y1_box
 
@@ -221,7 +208,7 @@ def process_frame(model: YOLO, extracted_frame, crop_values) -> list:
 
                 if brightness > 180:
                     continue  # too bright — likely crosswalk or road marking
-                
+
                 # ── Texture filter ────────────────────────────────
                 gray_roi = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
                 texture_score = cv2.Laplacian(gray_roi, cv2.CV_64F).var()
@@ -245,8 +232,6 @@ def process_frame(model: YOLO, extracted_frame, crop_values) -> list:
                     interpolated=extracted_frame.interpolated,
                 )
             )
-            
-           
 
     return detections
 

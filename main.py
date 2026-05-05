@@ -19,14 +19,13 @@ from src.video_processor import extract_frames
 from src.detection_engine import load_model, process_frame, interactive_crop
 from src.data_store import create_table, save_detection
 
-
 # ── Configuration ─────────────────────────────────────────
 GPX_FOLDER = "data/gps_tracks"
 VIDEO_FOLDER = "data/raw_video"
 OUTPUT_FOLDER = "output/annotated_frames"
 # ──────────────────────────────────────────────────────────
 BATCH_SIZE = 8
-COOLDOWN_SECONDS = 90
+COOLDOWN_SECONDS = 30
 
 
 def find_gpx_for_date(date: str) -> str:
@@ -91,7 +90,11 @@ def find_clips_for_date(date: str) -> list:
     return clips
 
 
-def run_pipeline(date: str, num_clips: int = 10):
+def run_pipeline(
+    date: str,
+    num_clips: int = 10,
+    model_path: str = "models/Yolov8-fintuned-on-potholes.pt",
+):
     """
     Run the full detection pipeline for one shift.
     """
@@ -110,7 +113,7 @@ def run_pipeline(date: str, num_clips: int = 10):
 
     # ── Step 2: Load Model ────────────────────────────────
     print("\n🤖 Loading detection model...")
-    model = load_model()
+    model = load_model(model_path)
 
     # ── Step 3: Get Clips ─────────────────────────────────
     print(f"\n🎬 Loading clips for {date}...")
@@ -233,7 +236,11 @@ if __name__ == "__main__":
         default="10",
         help="Number of clips to process, or 'all' (default: 10)",
     )
-
+    parser.add_argument(
+        "--model",
+        default="models/Yolov8-fintuned-on-potholes.pt",
+        help="Path to model weights file (default: original model)",
+    )
     args = parser.parse_args()
 
     # Parse clips argument
@@ -242,4 +249,4 @@ if __name__ == "__main__":
     else:
         num_clips = int(args.clips)
 
-    run_pipeline(date=args.date, num_clips=num_clips)
+    run_pipeline(date=args.date, num_clips=num_clips, model_path=args.model)
