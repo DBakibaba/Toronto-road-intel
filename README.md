@@ -69,16 +69,16 @@ Toronto-road-intel/
 
 ## Model Training
 
-### Dataset
+### Dataset -v2(Balanced)
 
-The model was fine-tuned on a custom Toronto road damage dataset built from dashcam footage collected during real Uber driving shifts across Toronto.
+The final training dataset was built from confirmed pothole detection frames collected during real Toronto Uber driving shifts. The original dataset of 17,993 images had a 98.5% background rate, causing the model to learn that predicting nothing was always safe. The dataset was rebalanced to a 50/50 split.
 
-| Split     | Images     |
-| --------- | ---------- |
-| Train     | 41,160     |
-| Valid     | 2,857      |
-| Test      | 1,416      |
-| **Total** | **45,433** |
+| Split     | Images                     |
+| --------- | -------------------------- |
+| Train     | 475 (×3 augmented = 1,417) |
+| Valid     | 120                        |
+| Test      | 70                         |
+| **Total** | **665**                    |
 
 Dataset exported from Roboflow with the following augmentations: horizontal flip, ±10° rotation, ±25% brightness, ±15% exposure, blur up to 1.3px.
 
@@ -102,6 +102,7 @@ model.train(
     lr0=0.001,        # 10x smaller than default — prevents catastrophic forgetting
     lrf=0.01,         # final learning rate factor
     warmup_epochs=3,  # gentle ramp-up for the first 3 epochs
+    freeze=10,        # lock early feature extraction layers
 )
 ```
 
@@ -113,6 +114,15 @@ model.train(
 | 2     | 0.8461   | 1.466    | 0.4257   |
 | 3     | 0.820    | 1.375    | 0.4385   |
 | 4     | 0.4549   | 0.7178   | 0.2512   |
+
+## Model Versions
+
+| Version                          | Dataset                          | Epochs  | mAP50   | Notes                                          |
+| -------------------------------- | -------------------------------- | ------- | ------- | ---------------------------------------------- |
+| `Yolov8-fintuned-on-potholes.pt` | External                         | unknown | unknown | Baseline — many false positives                |
+| `toronto_pothole_v1`             | 41,160 images (98.5% background) | 4       | 0       | Failed — class imbalance, losses collapsed     |
+| `toronto_pothole_v2`             | 41,160 images (lr fix)           | 4       | 0       | Failed — catastrophic forgetting               |
+| `toronto_pothole_v3`             | 665 images (50/50 balanced)      | 20      | 0.102   | Working — 30 detections vs 138 false positives |
 
 ---
 
@@ -159,6 +169,9 @@ python main.py --date 20260305 --clips 20
 
 # Process all clips from a shift
 python main.py --date 20260305 --clips all
+
+# Compare models
+python main.py --date 20260305 --clips 10 --model models/toronto_pothole_v3_best.pt
 ```
 
 ### 5. Query results
@@ -222,6 +235,10 @@ The interactive crop zone is tuned for straight driving. During turns the lane s
 
 GPS sync automatically handles both Toronto winter time (UTC-5 / EST) and daylight saving time (UTC-4 / EDT) using `pytz` — no manual adjustment needed when switching seasons.
 
+### 7. Small training dataset
+
+The v3 model was trained on 352 labeled pothole images. Professional-grade models use tens of thousands. More labeled data will directly improve mAP50.
+
 ---
 
 ## Roadmap
@@ -233,11 +250,12 @@ GPS sync automatically handles both Toronto winter time (UTC-5 / EST) and daylig
 - [x] Batch processing with cooldown for long shift runs
 - [x] Daylight saving time support in GPS sync
 - [x] Custom Toronto dataset — 45,433 images labeled via Roboflow
-- [x] Fine-tune YOLOv8 on labeled Toronto road data (in progress)
-- [ ] Folium interactive map showing detection hotspots across Toronto
+- [x] Fine-tuned YOLOv8 v3 — mAP50=0.102, fewer false positives
+- [x] Folium interactive map showing detection hotspots across Toronto
 - [ ] Looker Studio dashboard for detection visualization
-- [ ] Curated high-quality dataset focused on confirmed pothole frames
 - [ ] Dynamic crop zone that follows lane position during turns
+- [ ] Expand labeled dataset to 1,000+ images
+- [x] Fixed class imbalance — balanced 50/50 dataset
 
 ---
 
